@@ -163,8 +163,9 @@ static struct port_obj *port_obj_alloc(struct teamd_context *ctx,
 	return port_obj;
 }
 
-static void port_obj_free(struct port_obj *port_obj)
+static void port_obj_free(struct teamd_context *ctx, struct port_obj *port_obj)
 {
+	list_del(&port_obj->list);
 	port_priv_free_all(port_obj);
 	free(port_obj);
 }
@@ -172,7 +173,7 @@ static void port_obj_free(struct port_obj *port_obj)
 static void port_obj_destroy(struct teamd_context *ctx,
 			     struct port_obj *port_obj)
 {
-	list_del(&port_obj->list);
+	//list_del(&port_obj->list);
 	ctx->port_obj_list_count--;
 	port_priv_fini_all(ctx, port_obj);
 }
@@ -205,7 +206,7 @@ teamd_event_port_removed:
 	teamd_event_port_removed(ctx, tdport);
 list_del:
 	port_obj_destroy(ctx, port_obj);
-	port_obj_free(port_obj);
+	port_obj_free(ctx, port_obj);
 	return err;
 }
 
@@ -249,7 +250,7 @@ static void check_port_objs_to_be_freed(struct teamd_context *ctx)
 	list_for_each_node_entry_safe(port_obj, tmp,
 				      &ctx->port_obj_list, list) {
 		if (port_obj->to_be_freed)
-			port_obj_free(port_obj);
+			port_obj_free(ctx, port_obj);
 	}
 }
 
@@ -260,8 +261,6 @@ static int port_priv_change_handler_func(struct team_handle *th, void *priv,
 	struct team_port *port;
 	struct port_obj *port_obj;
 	int err;
-
-	check_port_objs_to_be_freed(ctx);
 
 	team_for_each_port(port, th) {
 		uint32_t ifindex = team_get_port_ifindex(port);
@@ -284,6 +283,9 @@ static int port_priv_change_handler_func(struct team_handle *th, void *priv,
 			port_obj->to_be_freed = true;
 		}
 	}
+
+	check_port_objs_to_be_freed(ctx);
+
 	return 0;
 }
 
